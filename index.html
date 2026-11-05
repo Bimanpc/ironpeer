@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P2P Image Share</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#0f172a;
+    color:white;
+    text-align:center;
+    margin:0;
+    padding:20px;
+}
+.container{
+    max-width:700px;
+    margin:auto;
+}
+button,input{
+    margin:10px;
+    padding:10px;
+}
+img{
+    max-width:100%;
+    border-radius:10px;
+    margin-top:15px;
+}
+textarea{
+    width:100%;
+    height:80px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📸 Peer 2 Peer Image Share</h1>
+
+    <button id="createBtn">Create Room</button>
+
+    <p>Share this Offer:</p>
+    <textarea id="offerBox" readonly></textarea>
+
+    <p>Paste Remote Offer:</p>
+    <textarea id="remoteOffer"></textarea>
+    <button id="connectBtn">Connect</button>
+
+    <p>Answer:</p>
+    <textarea id="answerBox" readonly></textarea>
+
+    <p>Paste Remote Answer:</p>
+    <textarea id="remoteAnswer"></textarea>
+    <button id="setAnswerBtn">Set Answer</button>
+
+    <hr>
+
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="sendBtn">Send Image</button>
+
+    <h2>Received Image</h2>
+    <img id="receivedImage">
+</div>
+
+<script>
+let pc;
+let channel;
+
+function createPeer() {
+    pc = new RTCPeerConnection();
+
+    channel = pc.createDataChannel("images");
+
+    channel.onmessage = e => {
+        document.getElementById("receivedImage").src = e.data;
+    };
+
+    pc.onicecandidate = event => {
+        if (!event.candidate) {
+            document.getElementById("offerBox").value =
+                JSON.stringify(pc.localDescription);
+        }
+    };
+
+    pc.createOffer()
+      .then(o => pc.setLocalDescription(o));
+}
+
+document.getElementById("createBtn").onclick = createPeer;
+
+document.getElementById("connectBtn").onclick = async () => {
+
+    if (!pc) {
+        pc = new RTCPeerConnection();
+
+        pc.ondatachannel = event => {
+            channel = event.channel;
+
+            channel.onmessage = e => {
+                document.getElementById("receivedImage").src = e.data;
+            };
+        };
+
+        pc.onicecandidate = event => {
+            if (!event.candidate) {
+                document.getElementById("answerBox").value =
+                    JSON.stringify(pc.localDescription);
+            }
+        };
+    }
+
+    const offer =
+        JSON.parse(document.getElementById("remoteOffer").value);
+
+    await pc.setRemoteDescription(offer);
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+};
+
+document.getElementById("setAnswerBtn").onclick = async () => {
+    const answer =
+        JSON.parse(document.getElementById("remoteAnswer").value);
+
+    await pc.setRemoteDescription(answer);
+};
+
+document.getElementById("sendBtn").onclick = () => {
+
+    const file =
+        document.getElementById("imageInput").files[0];
+
+    if (!file || !channel) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+        channel.send(reader.result);
+    };
+
+    reader.readAsDataURL(file);
+};
+</script>
+
+</body>
+</html>
